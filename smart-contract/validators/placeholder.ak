@@ -1,13 +1,20 @@
 use aiken/list
 use aiken/option
+// Escrow Validator for SafeNest
+// Refactored for clarity and best practices
+
 use cardano/address.{Address, KeyHash}
 use cardano/script_context.{ScriptContext}
 use cardano/transaction.{OutputReference, Transaction}
 
+// Datum holds the key parties' addresses
+// lawyer and inspector are the addresses of the respective professionals
+// buyer is the address of the property buyer
+
 type EscrowDatum {
   buyer: Address,
-  lawyer_confirmed: Address,
-  inspector_confirmed: Address,
+  lawyer: Address,
+  inspector: Address,
 }
 
 type EscrowRedeemer {
@@ -27,26 +34,45 @@ validator escrow {
 
     when redeemer is {
       ConfirmByLawyer -> {
+        // Check if any extra signatory matches the lawyer's key hash
         expect
           list.any(
             tx.extra_signatories,
             fn(sig) {
-              when datum.lawyer_confirmed.payment_credential is {
+              when datum.lawyer.payment_credential is {
                 KeyHash(hash) -> sig == hash
                 _ -> false
               }
             },
           )
-
         true
       }
       ConfirmByInspector -> {
+        // Check if any signatory matches the inspector's key hash
         expect
-          list.any(tx.signatories, fn(sig) { sig == datum.inspector_confirmed })
+          list.any(
+            tx.signatories,
+            fn(sig) {
+              when datum.inspector.payment_credential is {
+                KeyHash(hash) -> sig == hash
+                _ -> false
+              }
+            },
+          )
         true
       }
       ReleaseFunds -> {
-        expect list.any(tx.signatories, fn(sig) { sig == datum.buyer })
+        // Check if any signatory matches the buyer's key hash
+        expect
+          list.any(
+            tx.signatories,
+            fn(sig) {
+              when datum.buyer.payment_credential is {
+                KeyHash(hash) -> sig == hash
+                _ -> false
+              }
+            },
+          )
         true
       }
     }
